@@ -1,31 +1,3 @@
-//var AbstractScheduler = Class.create({
-//    movementsCount : 0,
-//    movements : [],
-//
-//    moveToNext : function(inputQueue, head, tail, curIdx) {
-//        // dummy function
-//        // to be overriden in subclassees
-//    },
-//
-//    doScheduling : function(inputQueue, head, tail) {
-//        // curIdx = -1 means head
-//        var clonedInputQueue = inputQueue.clone(inputQueue);
-//        for (var curIdx = -1; curIdx < inputQueue.length-1; curIdx++) {
-//            this.moveToNext(clonedInputQueue, head, tail, curIdx);
-//        }
-//    },
-//
-//    getMovements : function() {
-//        return this.movements;
-//    },
-//
-//    getMovementsCount : function() {
-//        return this.movementsCount;
-//    }
-//
-//});
-
-//var FCFS = Class.create(AbstractScheduler, {
 function FCFS() {
 
     this.movements = [];
@@ -43,9 +15,7 @@ function FCFS() {
     }
 
 }
-//});
 
-//var SSTF = Class.create(AbstractScheduler, {
 function SSTF() {
 
     this.movements = [];
@@ -100,7 +70,6 @@ function SSTF() {
     }
 
 }
-//});
 
 function SCAN() {
 
