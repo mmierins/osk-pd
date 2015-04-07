@@ -28,35 +28,18 @@
 //var FCFS = Class.create(AbstractScheduler, {
 function FCFS() {
 
-    this.movementsCount = 0;
     this.movements = [];
-
-    this.moveToNext = function(inputQueue, curIdx) {
-        var cur = inputQueue[curIdx];
-
-        if (curIdx+1 <= inputQueue.length-1) {
-            var next = inputQueue[curIdx + 1];
-            this.movementsCount += Math.abs(next - cur);
-        }
-
-        this.movements.push(cur);
-    }
 
     this.getMovements = function() {
         return this.movements;
     }
 
     this.getMovementsCount = function() {
-        return this.movementsCount;
+        return countMovements(this.movements);
     }
 
     this.doScheduling = function(inputQueue, head, cyllindersCount) {
-        var inputQueueCopy = inputQueue.slice();
-        inputQueueCopy = [head].concat(inputQueueCopy);
-
-        for (var i = 0; i < inputQueueCopy.length; i++) {
-            this.moveToNext(inputQueueCopy, i);
-        }
+        this.movements = [head].concat(inputQueue);
     }
 
 }
@@ -65,42 +48,47 @@ function FCFS() {
 //var SSTF = Class.create(AbstractScheduler, {
 function SSTF() {
 
-    this.movementsCount = 0;
     this.movements = [];
 
+    // naive implementation
     this.getNextNearestElemIdx = function(inputQueue, cur) {
         var searchFromIdx = 0;
-        var nearestIdx = searchFromIdx;
-        var next = inputQueue[nearestIdx];
-        var nearestDistance = Math.abs(next - cur);
+        var nextNearestIdx = searchFromIdx;
+        var nextNearest = inputQueue[nextNearestIdx];
+        var nearestDistance = Math.abs(nextNearest - cur);
 
         for (var i = searchFromIdx + 1; i < inputQueue.length; i++) {
             var curDistance = Math.abs(inputQueue[i] - cur);
             if (curDistance < nearestDistance) {
                 nearestDistance = curDistance;
-                nearestIdx = i;
+                nextNearestIdx = i;
             }
         }
 
-        return nearestIdx;
+        return nextNearestIdx;
     }
 
     this.moveToNext = function(inputQueue, head) {
-        var cur = this.movements.length === 0 ? head : this.movements[this.movements.length-1];
+        var prevMovement = this.movements[this.movements.length-1];
+
+        var cur = (this.movements.length === 0) ? head : prevMovement;
+
         var nextIdx = this.getNextNearestElemIdx(inputQueue, cur);
         var next = inputQueue[nextIdx];
-        inputQueue.splice(nextIdx, 1);
 
-        this.movementsCount += Math.abs(next - cur);
+        inputQueue.splice(nextIdx, 1); // remove found elem from array
+
         this.movements.push(next);
     }
 
-    this.doScheduling = function(inputQueue, head, tail) {
-        // curIdx = -1 means head
-        var clonedInputQueue = inputQueue.slice();
-        for (var curIdx = -1; curIdx < inputQueue.length-1; curIdx++) {
-            this.moveToNext(clonedInputQueue, head);
+    this.doScheduling = function(inputQueue, head, cyllindersCount) {
+        var inputQueueCopy = inputQueue.slice();
+
+        for (var i = 0; i < inputQueue.length; i++) {
+            this.moveToNext(inputQueueCopy, head);
         }
+
+        this.movements = [head].concat(this.movements);
     }
 
     this.getMovements = function() {
@@ -108,7 +96,7 @@ function SSTF() {
     }
 
     this.getMovementsCount = function() {
-        return this.movementsCount;
+        return countMovements(this.movements);
     }
 
 }
@@ -116,66 +104,31 @@ function SSTF() {
 
 function SCAN() {
 
-    this.movementsCount = 0;
     this.movements = [];
 
-    this.getNextNearestElemIdx = function(inputQueue, cur) {
-        var searchFromIdx = 0;
-        var nearestIdx = searchFromIdx;
-        var next = inputQueue[nearestIdx];
-        var nearestDistance = Math.abs(next - cur);
-
-        for (var i = searchFromIdx + 1; i < inputQueue.length; i++) {
-            var curDistance = Math.abs(inputQueue[i] - cur);
-            if (curDistance < nearestDistance) {
-                nearestDistance = curDistance;
-                nearestIdx = i;
-            }
-        }
-
-        return nearestIdx;
-    }
-
-    this.countMovements = function(arr, start, end) {
-        var movements = 0;
-        for (var i = start; i < end-1; i++) {
-            var cur = arr[i];
-            var next = arr[i+1];
-            movements += Math.abs(next-cur);
-        }
-        return movements;
-    }
-
-    this.doScheduling = function(inputQueue, head, tail) {
-        // curIdx = -1 means head
+    this.doScheduling = function(inputQueue, head, cyllindersCount) {
         var clonedInputQueue = inputQueue.slice();
-        if (clonedInputQueue.indexOf(head) < 0) {
-            clonedInputQueue.push(head);
-        }
-        clonedInputQueue.push(0);
-        clonedInputQueue.push(tail);
-        clonedInputQueue.sort(
-            function(a,b) {
-                return a-b;
-            }
-        );
+
+        clonedInputQueue.push(0, head, cyllindersCount-1);
+        clonedInputQueue.sort(numericSort);
+        clonedInputQueue = removeDupes(clonedInputQueue);
 
         var curHeadIdx = clonedInputQueue.indexOf(head);
 
-        var movementsToStart = this.countMovements(clonedInputQueue, 0, curHeadIdx);
-        var movementsToEnd = this.countMovements(clonedInputQueue, curHeadIdx, clonedInputQueue.length-1);
+        var movementsToStart = countMovements(clonedInputQueue, 0, curHeadIdx);
+        var movementsToEnd = countMovements(clonedInputQueue, curHeadIdx, clonedInputQueue.length-1);
 
-        if (movementsToStart > movementsToEnd) {
-            this.movements = this.movements.concat(clonedInputQueue.slice(curHeadIdx, clonedInputQueue.length-1));
-            var temp = clonedInputQueue.slice(0, curHeadIdx-1);
-            this.movements = this.movements.concat(temp.reverse());
+        if (movementsToStart < movementsToEnd) {
+            var headPart = clonedInputQueue.slice(0, curHeadIdx+1).reverse();
+            var tailPart = clonedInputQueue.slice(curHeadIdx+1, clonedInputQueue.length-1)
+            this.movements = this.movements.concat(headPart);
+            this.movements = this.movements.concat(tailPart);
         } else {
-            var temp = clonedInputQueue.slice(0, curHeadIdx);
-            this.movements = this.movements.concat(temp.reverse());
-            this.movements = this.movements.concat(clonedInputQueue.slice(curHeadIdx+1, clonedInputQueue.length-1));
+            var headPart = clonedInputQueue.slice(1, curHeadIdx).reverse();
+            var tailPart = clonedInputQueue.slice(curHeadIdx, clonedInputQueue.length);
+            this.movements = this.movements.concat(tailPart);
+            this.movements = this.movements.concat(headPart);
         }
-
-        this.movementsCount = this.countMovements([head].concat(this.movements), 0, this.movements.length+1);
     }
 
     this.getMovements = function() {
@@ -183,82 +136,42 @@ function SCAN() {
     }
 
     this.getMovementsCount = function() {
-        return this.movementsCount;
+        return countMovements(this.movements);
     }
 
 }
 
 function CSCAN() {
 
-    this.movementsCount = 0;
     this.movements = [];
 
-    this.getNextNearestElemIdx = function(inputQueue, cur) {
-        var searchFromIdx = 0;
-        var nearestIdx = searchFromIdx;
-        var next = inputQueue[nearestIdx];
-        var nearestDistance = Math.abs(next - cur);
-
-        for (var i = searchFromIdx + 1; i < inputQueue.length; i++) {
-            var curDistance = Math.abs(inputQueue[i] - cur);
-            if (curDistance < nearestDistance) {
-                nearestDistance = curDistance;
-                nearestIdx = i;
-            }
-        }
-
-        return nearestIdx;
-    }
-
-    this.countMovements = function(arr, start, end) {
-        var movements = 0;
-        for (var i = start; i < end-1; i++) {
-            var cur = arr[i];
-            var next = arr[i+1];
-            movements += Math.abs(next-cur);
-        }
-        return movements;
-    }
-
-    this.doScheduling = function(inputQueue, head, tail) {
-        // curIdx = -1 means head
+    this.doScheduling = function(inputQueue, head, cyllindersCount) {
         var clonedInputQueue = inputQueue.slice();
-        if (clonedInputQueue.indexOf(head) < 0) {
-            clonedInputQueue.push(head);
-        }
-        clonedInputQueue.push(0);
-        clonedInputQueue.push(tail);
-        clonedInputQueue.sort(
-            function(a,b) {
-                return a-b;
-            }
-        );
+
+        clonedInputQueue.push(0, head, cyllindersCount-1);
+        clonedInputQueue.sort(numericSort);
+        clonedInputQueue = removeDupes(clonedInputQueue);
 
         var curHeadIdx = clonedInputQueue.indexOf(head);
 
-        var movementsToStart = this.countMovements(clonedInputQueue, 0, curHeadIdx);
-        var movementsToEnd = this.countMovements(clonedInputQueue, curHeadIdx, clonedInputQueue.length-1);
+        var movementsToStart = countMovements(clonedInputQueue, 0, curHeadIdx);
+        var movementsToEnd = countMovements(clonedInputQueue, curHeadIdx, clonedInputQueue.length-1);
 
-        if (movementsToStart > movementsToEnd) {
-            this.movements = this.movements.concat(clonedInputQueue.slice(curHeadIdx, clonedInputQueue.length-1));
-            this.movementsCount = this.countMovements(this.movements.concat([tail]), 0, this.movements.length+1);
+        if (movementsToStart < movementsToEnd) {
+            var headPart = clonedInputQueue.slice(0, curHeadIdx+1).reverse();
+            var tailPart = clonedInputQueue.slice(curHeadIdx+1, clonedInputQueue.length).reverse();
 
-            var temp = clonedInputQueue.slice(0, curHeadIdx-1);
-            this.movementsCount += this.countMovements([head].concat(temp), 0, temp.length+1);
-            this.movements = this.movements.concat(temp.reverse());
+            this.movements = this.movements.concat(headPart);
+            this.movements.push("-");
+            this.movements = this.movements.concat(tailPart);
         } else {
-            var temp = clonedInputQueue.slice(0, curHeadIdx);
-            this.movementsCount = this.countMovements([head].concat(temp), 0, temp.length+1);
-            this.movements = this.movements.concat(temp.reverse());
+            var tailPart = clonedInputQueue.slice(curHeadIdx, clonedInputQueue.length);
+            var headPart = clonedInputQueue.slice(0, curHeadIdx);
 
-            temp = clonedInputQueue.slice(curHeadIdx+1, clonedInputQueue.length);
-            temp = temp.reverse();
-
-            this.movementsCount += this.countMovements(temp.concat([tail]), 0, temp.length+1);
-            this.movements = this.movements.concat(temp);
+            this.movements = this.movements.concat(tailPart);
+            this.movements.push("-");
+            this.movements = this.movements.concat(headPart);
         }
-
-        this.movementsCount = this.countMovements([head].concat(this.movements), 0, this.movements.length+1);
     }
 
     this.getMovements = function() {
@@ -266,7 +179,36 @@ function CSCAN() {
     }
 
     this.getMovementsCount = function() {
-        return this.movementsCount;
+        return countMovements(this.movements);
+    }
+
+}
+
+function CLOOK() {
+
+    this.movements = [];
+
+    this.doScheduling = function(inputQueue, head, cyllindersCount) {
+        var cscan = new CSCAN();
+        cscan.doScheduling(inputQueue, head, cyllindersCount);
+
+        var temp = cscan.getMovements();
+
+        var firstCyllinder = 0;
+        var lastCyllinder = cyllindersCount - 1;
+
+        temp.splice(temp.indexOf(firstCyllinder), 1);
+        temp.splice(temp.indexOf(lastCyllinder), 1);
+
+        this.movements = temp;
+    }
+
+    this.getMovements = function() {
+        return this.movements;
+    }
+
+    this.getMovementsCount = function() {
+        return countMovements(this.movements);
     }
 
 }

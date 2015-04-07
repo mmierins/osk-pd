@@ -1,148 +1,266 @@
+<!DOCTYPE html>
 <html>
+
 <head>
     <script src="https://code.createjs.com/easeljs-0.7.0.min.js"></script>
     <script src="./js/InputDataGenerator.js"></script>
     <script src="./js/Schedulers.js"></script>
     <script src="./js/Utils.js"></script>
     <script src="./js/lib/jquery-2.1.3.min.js"></script>
-    <!--<script src="https://code.createjs.com/createjs-2014.12.12.min.js"></script>-->
-    <script>
-        var QUEUE_LENGTH = 10;
-        var HDD_CYLLYNDERS_COUNT = 200;
+    <script src="./js/lib/bootstrap.min.js"></script>
 
-        var MULTIPL_COEFFICIENT = 5;
-        var MARKER_LINE_WIDTH = MULTIPL_COEFFICIENT * HDD_CYLLYNDERS_COUNT;
-        var MARKER_LINE_H_MARGIN = 10;
-        var MOVEMENTS_V_MARGIN = 40;
-        var MARKER_HEIGHT = 10;
-        var V_START_POS = 100;
-        var H_START_POS = 100;
-        var LETTER_ADJUSTMENT = 3;
-        var OVERLAP_ADJUSMENT = 5;
+    <link href="./css/bootstrap.min.css" rel="stylesheet"/>
+    <link href="./css/bootstrap-theme.min.css" rel="stylesheet"/>
 
-        //var points = [0, 11, 34, 62, 64, 95, 119, 123, 180, 199];
-        var fcfsData = new InputDataGenerator(QUEUE_LENGTH, HDD_CYLLYNDERS_COUNT).getData();
-//        var fcfs = [95, 180, 34, 119, 11, 123, 62, 64];
-        var fcfsSched = new FCFS();
-        fcfsSched.doScheduling(fcfsData.queue, fcfsData.head, HDD_CYLLYNDERS_COUNT);
-
-        var points = fcfsData.queue.slice();
-        console.log("head ", fcfsData.head);
-        points.push(0, fcfsData.head, HDD_CYLLYNDERS_COUNT-1);
-        points = points.sort(numericSort);
-        points = removeDupes(points);
-        var fcfs = fcfsSched.getMovements();
-
-        function isLabelsOverlap(prevLabel, curLabelX) {
-            if (prevLabel === undefined) return false;
-
-            var prevLabelX = prevLabel.x;
-            var prevLabelWidth = prevLabel.getMeasuredWidth();
-            return curLabelX <= (prevLabelX + prevLabelWidth);
+    <style>
+        .centered {
+            margin: 0 auto;
+            width: 950px;
         }
 
-        function init() {
-            var stage = new createjs.Stage("schedGraphs");
+        .bottom-margin {
+            margin-bottom: 25px;
+        }
+    </style>
+
+    <script type="text/javascript">
+        $(document).ready(function() {
+
+            createjs.Graphics.prototype.dashedLineTo = function(x1, y1, x2, y2, dashLen) {
+                this.moveTo(x1, y1);
+
+                var dX = x2 - x1;
+                var dY = y2 - y1;
+                var dashes = Math.floor(Math.sqrt(dX * dX + dY * dY) / dashLen);
+                var dashX = dX / dashes;
+                var dashY = dY / dashes;
+
+                var q = 0;
+                while (q++ < dashes) {
+                    x1 += dashX;
+                    y1 += dashY;
+                    this[q % 2 == 0 ? 'moveTo' : 'lineTo'](x1, y1);
+                }
+                this[q % 2 == 0 ? 'moveTo' : 'lineTo'](x2, y2);
+            }
+
+            // CONSTANTS
+            var QUEUE_LENGTH = 10;
+            var HDD_CYLLYNDERS_COUNT = 200;
+
+            var SCALE_FACTOR = 4;
+            var MARKER_LINE_WIDTH = SCALE_FACTOR * HDD_CYLLYNDERS_COUNT;
+            var MARKER_LINE_H_MARGIN = 10;
+            var MOVEMENTS_V_MARGIN = 40;
+            var MARKER_HEIGHT = 10;
+            var V_START_POS = 100;
+            var H_START_POS = 10;
+            var LETTER_ADJUSTMENT = 3;
+            var OVERLAP_ADJUSMENT = 5;
+
+            var SPECIAL_SYMBOL = "-";
+
+            var SELECTED_BTN_CSS_CLASS = "btn-info";
+
+            var algos = {
+                "fcfs" : FCFS,
+                "sstf" : SSTF,
+                "scan" : SCAN,
+                "cscan": CSCAN,
+                "clook" : CLOOK
+            }
+
+            var randomData = new InputDataGenerator(QUEUE_LENGTH, HDD_CYLLYNDERS_COUNT).getData();
+
+            function prepareData(algoName) {
+                var algo = new algos[algoName];
+                algo.doScheduling(randomData.queue, randomData.head, HDD_CYLLYNDERS_COUNT);
+
+                var allCyllinders = randomData.queue.slice();
+                allCyllinders.push(0 /* first cyllinder */, randomData.head, HDD_CYLLYNDERS_COUNT-1);
+                allCyllinders = allCyllinders.sort(numericSort);
+                allCyllinders = removeDupes(allCyllinders);
+
+                return {
+                    "inputQueue" : randomData.queue,
+                    "head" : randomData.head,
+                    "movementsCount" : algo.getMovementsCount(),
+                    "movements" : algo.getMovements(),
+                    "allCyllinders" : allCyllinders
+                }
+            }
+
+            function printInfo(data) {
+                $("#info").empty();
+                $("#info").append("CYLLINDERS COUNT: " + HDD_CYLLYNDERS_COUNT + "</br>");
+                $("#info").append("INPUT QUEUE: " + data.inputQueue.join(", ") + "</br>");
+                $("#info").append("HEAD INITIAL POSITION: " + data.head + "</br>");
+                $("#info").append("MOVEMENTS COUNT: " + data.movementsCount + "</br>");
+            }
+
+            function deselectAllBtns() {
+                $("." + SELECTED_BTN_CSS_CLASS).removeClass(SELECTED_BTN_CSS_CLASS);
+            }
+
+            function markBtnAsSelected(elem) {
+                $(elem).addClass(SELECTED_BTN_CSS_CLASS);
+            }
+
+            function isLabelsOverlap(prevLabel, curLabelX) {
+                if (prevLabel === undefined) return false;
+
+                var prevLabelX = prevLabel.x;
+                var prevLabelWidth = prevLabel.getMeasuredWidth();
+
+                return curLabelX <= (prevLabelX + prevLabelWidth);
+            }
+
+            function render(data) {
+                var  stage = new createjs.Stage("schedGraphs");
 
 //            var rect = new createjs.Shape();
 //            rect.graphics.beginFill("#000").drawRect(10, 10, 100, 100);
 //            stage.addChild(rect);
 
-            var line = new createjs.Shape();
-            line
-                .graphics
-                .moveTo(H_START_POS,V_START_POS)
-                .setStrokeStyle(2)
-                .beginStroke("black")
-                .lineTo(H_START_POS + MARKER_LINE_H_MARGIN*2 + MARKER_LINE_WIDTH, V_START_POS);
-            stage.addChild(line);
+                var line = new createjs.Shape();
+                line
+                    .graphics
+                    .moveTo(H_START_POS,V_START_POS)
+                    .setStrokeStyle(2)
+                    .beginStroke("black")
+                    .lineTo(H_START_POS + MARKER_LINE_H_MARGIN*2 + MARKER_LINE_WIDTH, V_START_POS);
+                stage.addChild(line);
 
-            // cyllinder values to x coordinates map
-            var xMap = {};
 
-            var prevLabel = undefined;
+                var xMap = {}; // map between cyllinders and their placement on marker line
+                var prevLabel = undefined;
 
-            for (var i = 0; i < points.length; i++) {
-                if (i === 0) {
-                    var curHPos = H_START_POS + MARKER_LINE_H_MARGIN;
-                } else if (i === points.length - 1) {
-                    var curHPos = H_START_POS + MARKER_LINE_WIDTH + MARKER_LINE_H_MARGIN;
-                } else {
-                    var curHPos = H_START_POS + MARKER_LINE_H_MARGIN + (MULTIPL_COEFFICIENT * points[i]);
+                for (var i = 0; i < data.allCyllinders.length; i++) {
+                    if (i === 0) {
+                        var curHPos = H_START_POS + MARKER_LINE_H_MARGIN;
+                    } else if (i === data.allCyllinders.length - 1) {
+                        var curHPos = H_START_POS + MARKER_LINE_WIDTH + MARKER_LINE_H_MARGIN;
+                    } else {
+                        var curHPos = H_START_POS + MARKER_LINE_H_MARGIN + (SCALE_FACTOR * data.allCyllinders[i]);
+                    }
+
+                    xMap[data.allCyllinders[i]] = curHPos;
+
+                    var marker = new createjs.Shape();
+                    marker
+                            .graphics
+                            .moveTo(curHPos, V_START_POS + MARKER_HEIGHT / 2)
+                            .setStrokeStyle(1)
+                            .beginStroke("black")
+                            .lineTo(curHPos, V_START_POS - MARKER_HEIGHT / 2);
+                    stage.addChild(marker);
+
+                    var label = new createjs.Text(data.allCyllinders[i], "10px Arial", "black");
+                    var x = curHPos - ((data.allCyllinders[i] + "").length * LETTER_ADJUSTMENT);
+
+                    var isOverlapping = isLabelsOverlap(prevLabel, x);
+
+                    if (isOverlapping && prevLabel) {
+                        prevLabel.x -= OVERLAP_ADJUSMENT;
+                        x += OVERLAP_ADJUSMENT;
+                    }
+
+                    label.x = x;
+
+                    label.y = V_START_POS - MARKER_HEIGHT;
+                    label.textBaseline = "alphabetic";
+                    stage.addChild(label);
+
+                    prevLabel = label;
+
                 }
 
-                xMap[points[i]] = curHPos;
+                var curY = V_START_POS + MARKER_HEIGHT + MOVEMENTS_V_MARGIN;
+                var prevX = 0, prevY = 0;
 
-                var marker = new createjs.Shape();
-                marker
-                        .graphics
-                        .moveTo(curHPos, V_START_POS + MARKER_HEIGHT / 2)
-                        .setStrokeStyle(1)
-                        .beginStroke("black")
-                        .lineTo(curHPos, V_START_POS - MARKER_HEIGHT / 2);
-                stage.addChild(marker);
+                for (var i = 0; i < data.movements.length; i++) {
+                    if (data.movements[i] === SPECIAL_SYMBOL) {
+                        continue;
+                    }
 
-                var label = new createjs.Text(points[i], "10px Arial", "black");
-                var x = curHPos - ((points[i] + "").length * LETTER_ADJUSTMENT);
+                    var curPoint = data.movements[i];
+                    var curX = xMap[curPoint];
 
-                var isOverlapping = isLabelsOverlap(prevLabel, x);
+                    var circleFillColor = "white";
 
-                if (isOverlapping && prevLabel) {
-                    prevLabel.x -= OVERLAP_ADJUSMENT;
-                    x += OVERLAP_ADJUSMENT;
+                    if (i === 0) {
+                        circleFillColor = "red";
+                    } else if (i === data.movements.length-1) {
+                        circleFillColor = "black";
+                    }
+
+                    if (i !== 0) {
+                        if (data.movements[i-1] === SPECIAL_SYMBOL) {
+                            var line = new createjs.Shape();
+                            line
+                                .graphics
+                                .setStrokeStyle(1)
+                                .beginStroke("black")
+                                .dashedLineTo(prevX, prevY, curX, prevY, 5);
+                            curY -= MOVEMENTS_V_MARGIN;
+                            stage.addChild(line);
+                            i++;
+                        } else {
+                            var line = new createjs.Shape();
+                            line
+                                .graphics
+                                .moveTo(prevX, prevY)
+                                .setStrokeStyle(1)
+                                .beginStroke("black")
+                                .lineTo(curX, curY);
+                            stage.addChild(line);
+                      }
+                    }
+
+                    var circle = new createjs.Shape();
+                    circle.graphics.setStrokeStyle(1).beginStroke("rgba(0,0,0,1)").beginFill(circleFillColor).drawCircle(curX,curY,5);
+                    stage.addChild(circle);
+
+                    prevX = curX;
+                    prevY = curY;
+
+                    curY += MOVEMENTS_V_MARGIN;
                 }
 
-                label.x = x;
-
-                label.y = V_START_POS - MARKER_HEIGHT;
-                label.textBaseline = "alphabetic";
-                stage.addChild(label);
-
-                prevLabel = label;
-
+                stage.update();
             }
 
-            var curY = V_START_POS + MARKER_HEIGHT + MOVEMENTS_V_MARGIN;
-            var prevX = 0, prevY = 0;
 
-            for (var i = 0; i < fcfs.length; i++) {
-                var curPoint = fcfs[i];
-                var curX = xMap[curPoint];
+            (function attachEventHandlers() {
+                $(".algoBtn").on("click", function() {
+                    deselectAllBtns();
+                    markBtnAsSelected(this);
 
-                var circleFillColor = "white";
+                    var algoName = $(this).attr("id");
+                    var data = prepareData(algoName);
+                    printInfo(data);
+                    render(data);
+                });
+            })();
 
-                if (i === 0) {
-                    circleFillColor = "red";
-                } else if (i === fcfs.length-1) {
-                    circleFillColor = "black";
-                }
-
-                var circle = new createjs.Shape();
-                circle.graphics.setStrokeStyle(1).beginStroke("rgba(0,0,0,1)").beginFill(circleFillColor).drawCircle(curX,curY,5);
-                stage.addChild(circle);
-
-                if (i !== 0) {
-                    var line = new createjs.Shape();
-                    line
-                        .graphics
-                        .moveTo(prevX, prevY)
-                        .setStrokeStyle(1)
-                        .beginStroke("black")
-                        .lineTo(curX, curY);
-                    stage.addChild(line);
-                }
-
-                prevX = curX;
-                prevY = curY;
-
-                curY += MOVEMENTS_V_MARGIN;
-            }
-
-            stage.update();
-        }
+            $("#fcfs").trigger("click");
+        });
     </script>
 </head>
-<body onload="init();">
-<canvas id="schedGraphs" width="1200" height="1000"></canvas>
+
+<body>
+    <div class="centered">
+
+        <h1><b>VISUALIZATION OF DISK SCHEDULING ALGORITHMS</b></h1>
+        <h2 id="info" class="bottom-margin"></h1>
+        <input id="fcfs" class="algoBtn btn btn-default" type="button" value="FCFS">
+        <input id="sstf" class="algoBtn btn btn-default" type="button" value="SSTF">
+        <input id="scan" class="algoBtn btn btn-default" type="button" value="SCAN">
+        <input id="cscan" class="algoBtn btn btn-default" type="button" value="C-SCAN">
+        <input id="clook" class="algoBtn btn btn-default" type="button" value="C-LOOK"></br>
+        <canvas id="schedGraphs" width="900" height="700"></canvas>
+
+    </div>
 </body>
+
 </html>
